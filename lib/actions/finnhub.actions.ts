@@ -3,24 +3,56 @@
 import { getDateRange, validateArticle, formatArticle } from '@/lib/utils';
 import { POPULAR_STOCK_SYMBOLS } from '@/lib/constants';
 import { cache } from 'react';
+import 'dotenv/config'
 
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
-const NEXT_PUBLIC_FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY ?? '';
+const NEXT_PUBLIC_FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
 
-async function fetchJSON<T>(url: string, revalidateSeconds?: number): Promise<T> {
-  const options: RequestInit & { next?: { revalidate?: number } } = revalidateSeconds
-    ? { cache: 'force-cache', next: { revalidate: revalidateSeconds } }
-    : { cache: 'no-store' };
-
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Fetch failed ${res.status}: ${text}`);
-  }
-  return (await res.json()) as T;
+interface NewsArticle {
+  id: number;
+  category: string;
+  datetime: number;
+  headline: string;
+  image: string;
+  related: string;
+  source: string;
+  summary: string;
+  url: string;
 }
 
-export { fetchJSON };
+async function fetchJSON(url: string, revalidateSeconds?: number) {
+  const options: RequestInit = {
+    headers: {
+      'X-Finnhub-Token': NEXT_PUBLIC_FINNHUB_API_KEY || ''
+    }
+  };
+
+  if (typeof revalidateSeconds === 'number') {
+    options.cache = 'force-cache';
+    options.next = { revalidate: revalidateSeconds };
+  } else {
+    options.cache = 'no-store';
+  }
+
+  const response = await fetch(url, options);
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function isValidArticle(article: any): article is NewsArticle {
+  return (
+    article &&
+    typeof article.id === 'number' &&
+    typeof article.headline === 'string' &&
+    typeof article.datetime === 'number' &&
+    typeof article.url === 'string' &&
+    typeof article.summary === 'string'
+  );
+}
 
 export async function getNews(symbols?: string[]): Promise<MarketNewsArticle[]> {
   try {
@@ -178,4 +210,3 @@ export const searchStocks = cache(async (query?: string): Promise<StockWithWatch
     return [];
   }
 });
-
